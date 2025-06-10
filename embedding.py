@@ -51,7 +51,7 @@ class TextEmbedder:
                 vector_size=self.kwargs.get('vector_size', 100),
                 window=self.kwargs.get('window', 5),
                 min_count=self.kwargs.get('min_count', 1),
-                workers=self.kwargs.get('workers', 4)
+                workers=self.kwargs.get('workers', 4),
                 sg=self.kwargs.get('sg', 1) # Use skipgram by default
             )
         elif self.method == 'bow':
