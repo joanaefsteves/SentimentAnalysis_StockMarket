@@ -102,8 +102,6 @@ class Preprocessing(PreprocessingBase):
                 nltk.download(resource_name, quiet=True)
 
     def _clean(self, text):
-        
-        text = text.lower()  # Convert to lowercase
 
         text = demojize(text) # Add demojize pattern 
 
@@ -130,7 +128,7 @@ class Preprocessing(PreprocessingBase):
 
         # Remove punctuation and stopwords
         tokens = [t for t in tokens if (t not in self.punctuation and t not in self.stopwords)]
-        
+
         #[print(t) for t in tokens ] # Debugging line to print tokens
         # Get normalized pattern values for comparison
         normalized_values = set(self.get_normalized_patterns())
@@ -141,6 +139,8 @@ class Preprocessing(PreprocessingBase):
             if token.upper() in normalized_values:  # Check if it's a normalized pattern
                 processed_tokens.append(token)
             else:
+                token = token.lower()  # Convert to lowercase
+
                 if self.lemmatize:
                     token = self.lemmatizer.lemmatize(token)
                 if self.stem:
