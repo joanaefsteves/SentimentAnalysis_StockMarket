@@ -2,3 +2,4 @@ Data/test.csv
 Data/train.csv
 .DS_Store
 __pycache__
+logs
