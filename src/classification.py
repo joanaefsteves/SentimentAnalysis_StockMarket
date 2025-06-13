@@ -156,7 +156,7 @@ class BaseSentimentClassifier(ABC):
         """
         pass
     
-    def evaluate(self, X_test, y_test):
+    def evaluate(self, X_test, y_test, print_report = False):
         """
         Evaluate model performance
         
@@ -178,28 +178,22 @@ class BaseSentimentClassifier(ABC):
         if self.label_encoder is not None:
             target_names = self.label_encoder.classes_
         
-        report = classification_report(y_test, predictions, target_names=target_names)
+        report = classification_report(y_test, predictions, target_names=target_names, output_dict=True)
         
         # Get additional metrics from subclass if available
         additional_metrics = self._get_additional_metrics(X_test, y_test)
+        if print_report:
+            print("Classification Report:\n", report)
         
         results = {
             'accuracy': accuracy,
             'classification_report': report,
             'predictions': predictions
         }
-        results.update(additional_metrics)
-        
-        return results
+        report.update(additional_metrics)
+        return report
     
-    def _get_additional_metrics(self, X_test, y_test):
-        """
-        Get additional model-specific metrics
-        Can be overridden by subclasses
-        
-        Returns:
-            dict: Additional metrics
-        """
+    def _get_additional_metrics(self, X_test, y_test):  
         return {}
     
     def cross_validate(self, X, y, cv=5, **kwargs):
@@ -216,29 +210,80 @@ class BaseSentimentClassifier(ABC):
             dict: Cross-validation scores
         """
         skf = StratifiedKFold(n_splits=cv, shuffle=True, random_state=self.random_state)
-        scores = []
+        scores = [] # list that will hold the classification report dictionaries of each fold
         tqdm.pandas(desc="Cross-validating")
         for fold, (train_idx, val_idx) in tqdm(enumerate(skf.split(X, y)), total=cv):
         
             # Split data
             X_train_fold, X_val_fold = X[train_idx], X[val_idx]
             y_train_fold, y_val_fold = y[train_idx], y[val_idx]
-            
-            # Create and train model for this fold
-            fold_scores = self._cross_validate_fold(
-                X_train_fold, y_train_fold, X_val_fold, y_val_fold, fold, **kwargs
-            )
-            scores.append(fold_scores)
         
-        scores = np.array(scores)
-        return {
-            'mean_score': np.mean(scores),
-            'std_score': np.std(scores),
-            'scores': scores
-        }
+            # Train and evaluate this fold
+            fold_score = self._cross_validate_fold(X_train_fold, y_train_fold, X_val_fold, y_val_fold, fold, **kwargs)
+            #print(f"Fold {fold + 1}/{cv} - Score: \n{fold_score}")
+            scores.append(fold_score)
+        
+        # Aggregate results
+        aggregated_scores = {}
+        
+        # Calculate average accuracy
+        accuracies = [score['accuracy'] for score in scores]
+        aggregated_scores['avg_accuracy'] = np.mean(accuracies)
+        aggregated_scores['std_accuracy'] = np.std(accuracies)
+        
+        # Calculate averages for macro avg and weighted avg
+        macro_precisions = [score['macro avg']['precision'] for score in scores]
+        macro_recalls = [score['macro avg']['recall'] for score in scores]
+        macro_f1s = [score['macro avg']['f1-score'] for score in scores]
+        
+        weighted_precisions = [score['weighted avg']['precision'] for score in scores]
+        weighted_recalls = [score['weighted avg']['recall'] for score in scores]
+        weighted_f1s = [score['weighted avg']['f1-score'] for score in scores]
+        
+        aggregated_scores.update({
+            'avg_macro_precision': np.mean(macro_precisions),
+            'std_macro_precision': np.std(macro_precisions),
+            'avg_macro_recall': np.mean(macro_recalls),
+            'std_macro_recall': np.std(macro_recalls),
+            'avg_macro_f1': np.mean(macro_f1s),
+            'std_macro_f1': np.std(macro_f1s),
+            
+            'avg_weighted_precision': np.mean(weighted_precisions),
+            'std_weighted_precision': np.std(weighted_precisions),
+            'avg_weighted_recall': np.mean(weighted_recalls),
+            'std_weighted_recall': np.std(weighted_recalls),
+            'avg_weighted_f1': np.mean(weighted_f1s),
+            'std_weighted_f1': np.std(weighted_f1s)
+        })
+        
+        # Calculate per-class averages (for classes '0', '1', '2', etc.)
+        class_keys = [key for key in scores[0].keys() if key.isdigit()]
+        
+        for class_key in class_keys:
+            class_precisions = [score[class_key]['precision'] for score in scores]
+            class_recalls = [score[class_key]['recall'] for score in scores]
+            class_f1s = [score[class_key]['f1-score'] for score in scores]
+            
+            aggregated_scores[f'avg_class_{class_key}_precision'] = np.mean(class_precisions)
+            aggregated_scores[f'std_class_{class_key}_precision'] = np.std(class_precisions)
+            aggregated_scores[f'avg_class_{class_key}_recall'] = np.mean(class_recalls)
+            aggregated_scores[f'std_class_{class_key}_recall'] = np.std(class_recalls)
+            aggregated_scores[f'avg_class_{class_key}_f1'] = np.mean(class_f1s)
+            aggregated_scores[f'std_class_{class_key}_f1'] = np.std(class_f1s)
+        
+        #print("*" * 50)
+        #print("Cross-Validation Results:")
+        #print(f"Average Accuracy: {aggregated_scores['avg_accuracy']:.4f} ± {aggregated_scores['std_accuracy']:.4f}")
+        #print(f"Average Macro F1: {aggregated_scores['avg_macro_f1']:.4f} ± {aggregated_scores['std_macro_f1']:.4f}")
+        #print(f"Average Weighted F1: {aggregated_scores['avg_weighted_f1']:.4f} ± {aggregated_scores['std_weighted_f1']:.4f}")
+        #print("*" * 50)
+
+        return aggregated_scores
+            
+
     
     @abstractmethod
-    def _cross_validate_fold(self, X_train, y_train, X_val, y_val, fold, **kwargs):
+    def _cross_validate_fold(self, X_train, y_train, X_val, y_val, fold, **kwargs) -> dict:
         """
         Train and evaluate a single cross-validation fold
         Must be implemented by subclasses
@@ -509,8 +554,10 @@ class SklearnSentimentClassifier(BaseSentimentClassifier):
         # Evaluate on validation set
         predictions = fold_model.predict(X_val)
         accuracy = accuracy_score(y_val, predictions)
+        # Fixed: Changed variable name to avoid shadowing the imported function
+        report_accuracy = classification_report(y_val, predictions, output_dict=True)#['accuracy']
         
-        return accuracy
+        return report_accuracy
     
     def _save_model_implementation(self, model_path):
         """
