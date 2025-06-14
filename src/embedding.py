@@ -1,3 +1,10 @@
+# Group 35: 
+# Joana Esteves, 20240746
+# José Cavaco, 20240513 
+# Leonardo Di Caterina 20240485
+# Matilde Miguel, 20240549 
+# Rita Serra, 20240515 
+
 from gensim.models import Word2Vec # type: ignore
 from sklearn.feature_extraction.text import CountVectorizer # type: ignore
 from sentence_transformers import SentenceTransformer # type: ignore

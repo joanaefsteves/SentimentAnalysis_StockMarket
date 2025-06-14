@@ -1,28 +1,26 @@
+# Group 35: 
+# Joana Esteves, 20240746
+# José Cavaco, 20240513 
+# Leonardo Di Caterina 20240485
+# Matilde Miguel, 20240549 
+# Rita Serra, 20240515 
+
 
 import re, string
 import emoji
 import contractions
 import torch
 import pandas as pd
+from abc import ABC, abstractmethod
 
 import nltk # type: ignore
 from nltk.corpus import stopwords, words # type: ignore
 from nltk.tokenize import word_tokenize # type: ignore
 from nltk.stem import WordNetLemmatizer, PorterStemmer # type: ignore
-
-from transformers import MarianMTModel, MarianTokenizer
-
-import langid
-
 from emoji import demojize # type: ignore
 
-from abc import ABC, abstractmethod
-
-
-"""
-    ascii 65-90
-    ascii 97-122
-"""
+from transformers import MarianMTModel, MarianTokenizer
+import langid
 
 class PreprocessingBase(ABC):
     def __init__(self):
