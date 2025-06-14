@@ -51,9 +51,9 @@ class TransformerEncoder():
         else:
             self.device = torch.device("cpu")
 
-    def train_predict(self, X_train, y_train, X_val, y_val, X_test=None, y_test=None):
+    def train_predict(self, X_train, y_train, X_val, y_val, X_test=None):
 
-        datasets = self._prepare_data(X_train, y_train, X_val, y_val, X_test, y_test)
+        datasets = self._prepare_data(X_train, y_train, X_val, y_val, X_test)
 
         self._prepare_labels()
 
@@ -71,14 +71,24 @@ class TransformerEncoder():
         # Predict
         if 'test' in tokenized_datasets:
             predictions = trainer.predict(tokenized_datasets['test'])
+            preds = np.argmax(predictions.predictions, axis=1)  
+
+            test_ids = tokenized_datasets['test']['id']
+
+            df_preds = pd.DataFrame({
+                'id': test_ids,
+                'prediction': preds
+            })
+            df_preds.to_csv('../pred_35.csv', index=False)
+            report = None
         else:
             predictions = trainer.predict(tokenized_datasets['val'])
-
-        # Evaluate 
-        preds = np.argmax(predictions.predictions, axis=1)
-        labels = predictions.label_ids
+            # Evaluate 
+            preds = np.argmax(predictions.predictions, axis=1)
+            labels = predictions.label_ids
+            report = classification_report(labels, preds, target_names=["bearish", "bullish", "neutral"])
     
-        return classification_report(labels, preds, target_names=["bearish", "bullish", "neutral"])
+        return predictions, report
 
     def _trainer(self):
 
@@ -142,7 +152,7 @@ class TransformerEncoder():
             per_device_train_batch_size=16,
             per_device_eval_batch_size=16,
             num_train_epochs=5,
-            learning_rate=3e-5,
+            learning_rate=0.01,
             weight_decay=0.01,
             eval_strategy="epoch",
             save_strategy="epoch",
@@ -171,7 +181,7 @@ class TransformerEncoder():
     def _tokenize(self, datasets):
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        tokenized_datasets = datasets.map(lambda examples: tokenizer(examples['text'], padding="max_length", truncation=True, max_length=82), batched=True)
+        tokenized_datasets = datasets.map(lambda examples: tokenizer(examples['text'], padding="max_length", truncation=True, max_length=128), batched=True)
 
         return tokenizer, tokenized_datasets
     
@@ -185,7 +195,7 @@ class TransformerEncoder():
             "f1": f1_score(labels, preds, average="macro"),
         }
     
-    def _prepare_data(self, X_train, y_train, X_val, y_val, X_test=None, y_test=None):
+    def _prepare_data(self, X_train, y_train, X_val, y_val, X_test=None):
         
         # Create DatasetDict - format needed for pre trained model 
         train_df = pd.DataFrame({'text': X_train, 'label': y_train})
@@ -199,8 +209,8 @@ class TransformerEncoder():
             'val': val_dataset,
         })
 
-        if X_test is not None and y_test is not None:
-            test_df = pd.DataFrame({'text': X_test, 'label': y_test})
+        if X_test is not None:
+            test_df = pd.DataFrame({'text': X_test['text'], 'id': X_test['id']})
             test_dataset = Dataset.from_pandas(test_df)
             datasets['test'] = test_dataset
 
