@@ -6,16 +6,22 @@ This project was developed with the goal of building an NLP model capable of pre
 
 ## 📁 Repository Structure
 - `Data/` folder containing the CSV files with the provided training and test datasets.
+- `Handout/` folder containing the project assignment and related materials.
 - `Notebooks/` folder including all the notebooks used to explore, test, and develop the model:
   - `EDA.ipynb` performs exploratory data analysis.
   - `test_preprocessing.ipynb` contains tests for the developed preprocessing methods.
   - `test_classifier.ipynb` includes tests with traditional classifiers.
-  - `transformer_encoder.ipynb` implements and trains the FinBERT and BERTweet models.
-  - `full_pipeline.ipynb` integrates all steps of the final pipeline into a single flow.
+  - `test_classifier_pipeline.ipynb` integrates classifiers into the pipeline.
+  - `test_embedding.ipynb` explores different embedding techniques.
+  - `test_pipeline.ipynb` tests the full prediction pipeline.
+  - `test_transformer_pipeline.ipynb` implements and tests transformer models.
 - `src/` folder contains reusable modules developed for the project:
+  - `__init__.py` module initialization file.
   - `preprocessing.py` implements cleaning and text transformation methods.
-  - `embedding.py` provides embedding generation methods using BoW, Word2Vec, and Transformers (SentenceTransformers).
+  - `embedding.py` provides embedding generation methods using BoW, Word2Vec, and Transformers.
   - `classification.py` contains the logic for training and evaluating the classifiers.
+  - `pipeline.py` implements the end-to-end prediction pipeline.
+  - `tranformer_encoder.py` contains the implementation of transformer-based models.
 
 ## 🔧 Preprocessing
 
