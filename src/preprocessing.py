@@ -121,7 +121,7 @@ class Preprocessing(PreprocessingBase):
 
         # Clean
         ascii_text  = self._final_ascii_clean(text)
-        #print(f"ASCII cleaned text: {ascii_text}")  # Debugging line to print ASCII cleaned text
+        print(f"ASCII cleaned text: {ascii_text}")  # Debugging line to print ASCII cleaned text
         tokens = self._tokenize(ascii_text)
 
         # Remove punctuation and stopwords
@@ -225,13 +225,42 @@ class Preprocessing(PreprocessingBase):
 
 class PreprocessingPretrained(PreprocessingBase):
     def __init__(self, translate=True):
+        
         self.translate = translate 
+        self._download_nltk_data()
         self.translator_name = "Helsinki-NLP/opus-mt-mul-en"
-        self.stopwords = set(stopwords.words("english"))
+
+        try:
+            self.stopwords = set(stopwords.words("english"))  
+        except LookupError:
+            nltk.download("stopwords", quiet=True)
+            self.stopwords = set(stopwords.words("english"))
+
+        try:
+            self.english_vocab = set(w.lower() for w in words.words())  
+        except LookupError:
+            nltk.download("words", quiet=True)
+            self.english_vocab = set(w.lower() for w in words.words())
+
         self.english_vocab = set(w.lower() for w in words.words())
         self.tokenizer = MarianTokenizer.from_pretrained(self.translator_name)
         self.model = MarianMTModel.from_pretrained(self.translator_name)
+
+    def _download_nltk_data(self):
+        """Download required NLTK data if not already present"""
+        resources = [
+            ('corpora/stopwords', 'stopwords'),
+            ('corpora/words', 'words'),
+            ('corpora/wordnet', 'wordnet'),
+            ('corpora/omw-1.4', 'omw-1.4')          # Additional wordnet data
+        ]
         
+        for resource_path, resource_name in resources:
+            try:
+                nltk.data.find(resource_path)
+            except LookupError:
+                print(f"Downloading {resource_name}...")
+                nltk.download(resource_name, quiet=True)        
     def _clean(self, text):
 
         text = demojize(text) # Demojize

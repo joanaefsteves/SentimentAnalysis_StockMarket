@@ -30,7 +30,7 @@ class TransformerEncoder():
     Defines the common interface and shared functionality
     """
     
-    def __init__(self, num_classes, model_name, base_model="BERT", random_state=42):
+    def __init__(self, num_classes, model_name, base_model="BERT", batch_size=16, learning_rate=3e-5, num_epochs=10, random_state=42, use_wandb=True):
         """
         Initialize base classifier
         
@@ -40,7 +40,11 @@ class TransformerEncoder():
         self.random_state = random_state
         self.model_name = model_name
         self.base_model = base_model
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.num_epochs = num_epochs
         self.num_classes = num_classes
+        self.use_wandb = use_wandb 
         self.label2id = None
         self.id2label = None
 
@@ -51,9 +55,9 @@ class TransformerEncoder():
         else:
             self.device = torch.device("cpu")
 
-    def train_predict(self, X_train, y_train, X_val, y_val, X_test=None):
+    def train_predict(self, X_train, y_train, X_val, y_val, X_test=None, y_test=None):
 
-        datasets = self._prepare_data(X_train, y_train, X_val, y_val, X_test)
+        datasets = self._prepare_data(X_train, y_train, X_val, y_val, X_test, y_test)
 
         self._prepare_labels()
 
@@ -80,7 +84,8 @@ class TransformerEncoder():
                 'prediction': preds
             })
             df_preds.to_csv('../pred_35.csv', index=False)
-            report = None
+            report = None      
+        
         else:
             predictions = trainer.predict(tokenized_datasets['val'])
             # Evaluate 
@@ -149,17 +154,18 @@ class TransformerEncoder():
         training_args = TrainingArguments(
             # default optimizer = adam
             output_dir=f"../logs/{self.model_name}",
-            per_device_train_batch_size=16,
-            per_device_eval_batch_size=16,
-            num_train_epochs=5,
-            learning_rate=0.01,
+            per_device_train_batch_size=self.batch_size,
+            per_device_eval_batch_size=self.batch_size,
+            num_train_epochs=self.num_epochs,
+            learning_rate=self.learning_rate,
             weight_decay=0.01,
             eval_strategy="epoch",
             save_strategy="epoch",
             logging_dir='./logs',
             load_best_model_at_end=True,
             metric_for_best_model="eval_loss",
-            greater_is_better=False # we are minimizing loss
+            greater_is_better=False, # we are minimizing loss
+            report_to="wandb" if self.use_wandb else "none"
         )
 
         Trainer = TrainerClass
@@ -195,7 +201,7 @@ class TransformerEncoder():
             "f1": f1_score(labels, preds, average="macro"),
         }
     
-    def _prepare_data(self, X_train, y_train, X_val, y_val, X_test=None):
+    def _prepare_data(self, X_train, y_train, X_val, y_val, X_test=None, y_test=None):
         
         # Create DatasetDict - format needed for pre trained model 
         train_df = pd.DataFrame({'text': X_train, 'label': y_train})
@@ -209,8 +215,8 @@ class TransformerEncoder():
             'val': val_dataset,
         })
 
-        if X_test is not None:
-            test_df = pd.DataFrame({'text': X_test['text'], 'id': X_test['id']})
+        if X_test is not None and y_test is not None:
+            test_df = pd.DataFrame({'text': X_test, 'label': y_test})
             test_dataset = Dataset.from_pandas(test_df)
             datasets['test'] = test_dataset
 
