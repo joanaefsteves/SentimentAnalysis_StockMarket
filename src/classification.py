@@ -27,6 +27,7 @@ import joblib #type: ignore
 import tensorflow as tf #type: ignore
 from tensorflow import keras #type: ignore
 from tensorflow.keras import layers #type: ignore
+from imblearn.combine import SMOTETomek
 
 class BaseSentimentClassifier(ABC):
     """
@@ -203,7 +204,7 @@ class BaseSentimentClassifier(ABC):
     def _get_additional_metrics(self, X_test, y_test):  
         return {}
     
-    def cross_validate(self, X, y, cv=5, **kwargs):
+    def cross_validate(self, X, y, cv=5, oversample = False,**kwargs):
         """
         Perform cross-validation
         
@@ -226,10 +227,19 @@ class BaseSentimentClassifier(ABC):
             y_train_fold, y_val_fold = y[train_idx], y[val_idx]
         
             # Train and evaluate this fold
+            # oversample wit SMOTETomek
+            if oversample:
+                print(f"Applying SMOTETomek oversampling for fold {fold + 1}/{cv}")
+                smote_tomek = SMOTETomek(random_state=self.random_state)
+                X_train_fold, y_train_fold = smote_tomek.fit_resample(X_train_fold, y_train_fold)
+                X_train_fold  = np.clip(X_train_fold, 1e-8, None)
+            
             fold_score = self._cross_validate_fold(X_train_fold, y_train_fold, X_val_fold, y_val_fold, fold, **kwargs)
             #print(f"Fold {fold + 1}/{cv} - Score: \n{fold_score}")
             scores.append(fold_score)
         
+        print(f"Cross-validation completed with {cv} folds.")
+        print(f"Scores for each fold: {scores}")
         # Aggregate results
         aggregated_scores = {}
         
@@ -238,15 +248,16 @@ class BaseSentimentClassifier(ABC):
         aggregated_scores['avg_accuracy'] = np.mean(accuracies)
         aggregated_scores['std_accuracy'] = np.std(accuracies)
         
+        print(f"Average accuracy: {aggregated_scores['avg_accuracy']:.4f} ± {aggregated_scores['std_accuracy']:.4f}")
         # Calculate averages for macro avg and weighted avg
         macro_precisions = [score['macro avg']['precision'] for score in scores]
         macro_recalls = [score['macro avg']['recall'] for score in scores]
         macro_f1s = [score['macro avg']['f1-score'] for score in scores]
-        
+        print(f"Macro avg precision: {np.mean(macro_precisions):.4f} ± {np.std(macro_precisions):.4f}")
         weighted_precisions = [score['weighted avg']['precision'] for score in scores]
         weighted_recalls = [score['weighted avg']['recall'] for score in scores]
         weighted_f1s = [score['weighted avg']['f1-score'] for score in scores]
-        
+        print(f"Weighted avg precision: {np.mean(weighted_precisions):.4f} ± {np.std(weighted_precisions):.4f}")
         aggregated_scores.update({
             'avg_macro_precision': np.mean(macro_precisions),
             'std_macro_precision': np.std(macro_precisions),
@@ -277,6 +288,27 @@ class BaseSentimentClassifier(ABC):
             aggregated_scores[f'std_class_{class_key}_recall'] = np.std(class_recalls)
             aggregated_scores[f'avg_class_{class_key}_f1'] = np.mean(class_f1s)
             aggregated_scores[f'std_class_{class_key}_f1'] = np.std(class_f1s)
+            
+            
+        # get the minimum and maximum average precision, recall and f1-score of the classes
+        aggregated_scores['min_avg_class_precision'] = min(
+            aggregated_scores[f'avg_class_{class_key}_precision'] for class_key in class_keys
+        )
+        aggregated_scores['max_avg_class_precision'] = max(
+            aggregated_scores[f'avg_class_{class_key}_precision'] for class_key in class_keys
+        )   
+        aggregated_scores['min_avg_class_recall'] = min(
+            aggregated_scores[f'avg_class_{class_key}_recall'] for class_key in class_keys
+        )       
+        aggregated_scores['max_avg_class_recall'] = max(
+            aggregated_scores[f'avg_class_{class_key}_recall'] for class_key in class_keys
+        )
+        aggregated_scores['min_avg_class_f1'] = min(
+            aggregated_scores[f'avg_class_{class_key}_f1'] for class_key in class_keys
+        )
+        aggregated_scores['max_avg_class_f1'] = max(
+            aggregated_scores[f'avg_class_{class_key}_f1'] for class_key in class_keys
+        )               
         
         #print("*" * 50)
         #print("Cross-Validation Results:")
@@ -560,8 +592,7 @@ class SklearnSentimentClassifier(BaseSentimentClassifier):
         
         # Evaluate on validation set
         predictions = fold_model.predict(X_val)
-        accuracy = accuracy_score(y_val, predictions)
-        # Fixed: Changed variable name to avoid shadowing the imported function
+        #accuracy = accuracy_score(y_val, predictions)
         report_accuracy = classification_report(y_val, predictions, output_dict=True)#['accuracy']
         
         return report_accuracy
@@ -929,8 +960,8 @@ class KerasSentimentClassifier(BaseSentimentClassifier):
             'test_accuracy': test_accuracy
         }
     
-    def _cross_validate_fold(self, X_train, y_train, X_val, y_val, fold, epochs=50, 
-                           batch_size=32, **kwargs):
+    def _cross_validate_fold(self, X_train, y_train, X_val, y_val, fold, 
+                            epochs=50, batch_size=32, **kwargs):
         """
         Train and evaluate a single cross-validation fold for Keras models
         
@@ -945,8 +976,9 @@ class KerasSentimentClassifier(BaseSentimentClassifier):
             **kwargs: Additional parameters
             
         Returns:
-            float: Validation accuracy for this fold
+            dict: Classification report dictionary with accuracy and other metrics
         """
+        
         # Create model for this fold
         if self.input_dim is None:
             self.input_dim = X_train.shape[1]
@@ -969,14 +1001,26 @@ class KerasSentimentClassifier(BaseSentimentClassifier):
             verbose=0
         )
         
-        # Evaluate
-        _, accuracy = fold_model.evaluate(X_val, y_val, verbose=0)
+        # Get predictions for sklearn metrics
+        predictions = fold_model.predict(X_val, verbose=0)
+        
+        # Convert predictions to class labels if needed
+        if len(predictions.shape) > 1 and predictions.shape[1] > 1:
+            # Multi-class: get argmax
+            predictions = np.argmax(predictions, axis=1)
+        else:
+            # Binary: threshold at 0.5
+            predictions = (predictions > 0.5).astype(int).flatten()
+        
+        # Generate classification report (same format as sklearn version)
+        report_accuracy = classification_report(y_val, predictions, output_dict=True)
         
         # Clean up to prevent memory issues
         del fold_model
         tf.keras.backend.clear_session()
         
-        return accuracy
+        return report_accuracy
+        
     
     def _save_model_implementation(self, model_path):
         """
@@ -1125,3 +1169,209 @@ class KerasSentimentClassifier(BaseSentimentClassifier):
         """String representation of the Keras classifier"""
         layers_str = f"hidden_layers={self.hidden_layers}"
         return f"KerasSentimentClassifier({layers_str}, trained={self.is_trained})"
+    
+    
+    # Add these imports at the top of your file
+from sklearn.neighbors import KNeighborsClassifier
+
+class KNNSentimentClassifier(BaseSentimentClassifier):
+    """
+    K-Nearest Neighbors sentiment classifier implementation
+    """
+    
+    def __init__(self, n_neighbors=5, weights='uniform', algorithm='auto', 
+                 metric='minkowski', p=2, random_state=42):
+        """
+        Initialize KNN sentiment classifier
+        
+        Args:
+            n_neighbors (int): Number of neighbors to use
+            weights (str): Weight function ('uniform' or 'distance')
+            algorithm (str): Algorithm to compute nearest neighbors
+            metric (str): Distance metric to use
+            p (int): Parameter for Minkowski metric
+            random_state (int): Random state for reproducibility
+        """
+        super().__init__(random_state=random_state)
+        
+        self.n_neighbors = n_neighbors
+        self.weights = weights
+        self.algorithm = algorithm
+        self.metric = metric
+        self.p = p
+    
+    def _build_model(self):
+        """
+        Build the KNN model
+        
+        Returns:
+            KNeighborsClassifier: Configured KNN model
+        """
+        return KNeighborsClassifier(
+            n_neighbors=self.n_neighbors,
+            weights=self.weights,
+            algorithm=self.algorithm,
+            metric=self.metric,
+            p=self.p,
+            n_jobs=-1  # Use all available cores
+        )
+    
+    def train(self, X_train, y_train, **kwargs):
+        """
+        Train the KNN classifier
+        
+        Args:
+            X_train (numpy.ndarray): Training features
+            y_train (numpy.ndarray): Training labels
+            **kwargs: Additional parameters (ignored for KNN)
+        """
+        if self.is_trained:
+            print("Warning: Model has already been trained. Creating new model instance.")
+        
+        # Build the model
+        self.model = self._build_model()
+        
+        # Train the model (KNN just stores the training data)
+        try:
+            self.model.fit(X_train, y_train)
+            self.is_trained = True
+            print(f"KNN model trained successfully with {len(X_train)} training samples.")
+        except Exception as e:
+            print(f"Error training KNN model: {e}")
+            raise
+        
+        return self.model
+    
+    def _predict_implementation(self, X):
+        """
+        KNN-specific prediction implementation
+        
+        Args:
+            X (numpy.ndarray): Features to predict
+            
+        Returns:
+            numpy.ndarray: Predictions
+        """
+        return self.model.predict(X)
+    
+    def _predict_proba_implementation(self, X):
+        """
+        KNN-specific probability prediction implementation
+        
+        Args:
+            X (numpy.ndarray): Features to predict
+            
+        Returns:
+            numpy.ndarray: Prediction probabilities
+        """
+        return self.model.predict_proba(X)
+    
+    def _cross_validate_fold(self, X_train, y_train, X_val, y_val, fold, **kwargs):
+        """
+        Train and evaluate a single cross-validation fold for KNN models
+        
+        Args:
+            X_train (numpy.ndarray): Training features for this fold
+            y_train (numpy.ndarray): Training labels for this fold
+            X_val (numpy.ndarray): Validation features for this fold
+            y_val (numpy.ndarray): Validation labels for this fold
+            fold (int): Fold number (for logging)
+            **kwargs: Additional parameters (ignored)
+            
+        Returns:
+            dict: Classification report dictionary
+        """
+        # Create and train model for this fold
+        fold_model = self._build_model()
+        fold_model.fit(X_train, y_train)
+        
+        # Evaluate on validation set
+        predictions = fold_model.predict(X_val)
+        report = classification_report(y_val, predictions, output_dict=True)
+        
+        return report
+    
+    def _save_model_implementation(self, model_path):
+        """
+        Save the KNN model
+        
+        Args:
+            model_path (str): Path to save model (without extension)
+        """
+        joblib.dump(self.model, f"{model_path}_knn_model.pkl")
+    
+    def _get_save_metadata(self):
+        """
+        Get KNN-specific metadata for saving
+        
+        Returns:
+            dict: KNN-specific metadata
+        """
+        return {
+            'n_neighbors': self.n_neighbors,
+            'weights': self.weights,
+            'algorithm': self.algorithm,
+            'metric': self.metric,
+            'p': self.p
+        }
+    
+    def _load_model_implementation(self, model_path):
+        """
+        Load the KNN model
+        
+        Args:
+            model_path (str): Path to model file (without extension)
+        """
+        self.model = joblib.load(f"{model_path}_knn_model.pkl")
+    
+    def _load_metadata(self, metadata):
+        """
+        Load KNN-specific metadata
+        
+        Args:
+            metadata (dict): Loaded metadata dictionary
+        """
+        self.n_neighbors = metadata['n_neighbors']
+        self.weights = metadata['weights']
+        self.algorithm = metadata['algorithm']
+        self.metric = metadata['metric']
+        self.p = metadata['p']
+    
+    def _get_model_specific_info(self):
+        """
+        Get KNN-specific model information
+        
+        Returns:
+            dict: KNN-specific information
+        """
+        info = {
+            'n_neighbors': self.n_neighbors,
+            'weights': self.weights,
+            'algorithm': self.algorithm,
+            'metric': self.metric,
+            'p': self.p,
+            'effective_metric': self.model.effective_metric_ if self.model else None,
+            'n_samples_fit': self.model.n_samples_fit_ if self.model else None
+        }
+        
+        return info
+    
+    def get_neighbors(self, X, return_distance=False):
+        """
+        Find the k-neighbors of a point
+        
+        Args:
+            X (numpy.ndarray): Query points
+            return_distance (bool): Whether to return distances
+            
+        Returns:
+            numpy.ndarray: Indices of neighbors (and distances if requested)
+        """
+        if not self.is_trained or self.model is None:
+            raise ValueError("Model has not been trained yet.")
+        
+        return self.model.kneighbors(X, return_distance=return_distance)
+    
+    def __str__(self):
+        """String representation of the KNN classifier"""
+        return f"KNNSentimentClassifier(n_neighbors={self.n_neighbors}, trained={self.is_trained})"

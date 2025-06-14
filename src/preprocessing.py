@@ -121,7 +121,7 @@ class Preprocessing(PreprocessingBase):
 
         # Clean
         ascii_text  = self._final_ascii_clean(text)
-        print(f"ASCII cleaned text: {ascii_text}")  # Debugging line to print ASCII cleaned text
+        #print(f"ASCII cleaned text: {ascii_text}")  # Debugging line to print ASCII cleaned text
         tokens = self._tokenize(ascii_text)
 
         # Remove punctuation and stopwords
