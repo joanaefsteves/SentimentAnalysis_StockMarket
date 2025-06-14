@@ -16,7 +16,6 @@ This project was developed with the goal of building an NLP model capable of pre
   - `preprocessing.py` implements cleaning and text transformation methods.
   - `embedding.py` provides embedding generation methods using BoW, Word2Vec, and Transformers (SentenceTransformers).
   - `classification.py` contains the logic for training and evaluating the classifiers.
-  ---
 
 ## 🔧 Preprocessing
 
@@ -24,4 +23,4 @@ Two preprocessing classes were developed in `preprocessing` module:
 
 - `Preprocessing`: applies cleaning, lemmatization, stemming, regex-based normalization, noise treatment (hashtags, URLs, etc.), and translation of non-English tweets.
 - `PreprocessingPretrained`: a simplified version designed for Transformer-based models, applying only emoji demojization and translation.
----
+
