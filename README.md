@@ -24,3 +24,16 @@ Two preprocessing classes were developed in `preprocessing` module:
 - `Preprocessing`: applies cleaning, lemmatization, stemming, regex-based normalization, noise treatment (hashtags, URLs, etc.), and translation of non-English tweets.
 - `PreprocessingPretrained`: a simplified version designed for Transformer-based models, applying only emoji demojization and translation.
 
+## 📝 Classification Models
+...
+
+## 📊 Evaluation
+
+The following metrics were used to assess model performance:
+
+- **Accuracy**
+- **Precision** (macro and weighted)
+- **Recall** (macro and weighted)
+- **F1-Score** (macro and weighted)
+
+
