@@ -8,13 +8,13 @@ This project was developed with the goal of building an NLP model capable of pre
 - `Data/` folder containing the CSV files with the provided training and test datasets.
 - `Handout/` folder containing the project assignment and related materials.
 - `Notebooks/` folder including all the notebooks used to explore, test, and develop the model:
-  - `EDA.ipynb` performs exploratory data analysis.
-  - `test_preprocessing.ipynb` contains tests for the developed preprocessing methods.
-  - `test_classifier.ipynb` includes tests with traditional classifiers.
-  - `test_classifier_pipeline.ipynb` integrates classifiers into the pipeline.
-  - `test_embedding.ipynb` explores different embedding techniques.
-  - `test_pipeline.ipynb` tests the full prediction pipeline.
-  - `test_transformer_pipeline.ipynb` implements and tests transformer models.
+  - `0_EDA.ipynb` performs exploratory data analysis.
+  - `1_test_preprocessing.ipynb` contains tests for the developed preprocessing methods.
+  - `2_test_embedding.ipynb` explores different embedding techniques.
+  - `3_test_classifier.ipynb` includes tests with traditional classifiers.
+  - `4_gridsearch_pipeline.ipynb` builds and tunes pipelines using both classical machine learning models (e.g., Logistic Regression, Random Forest) and deep learning models with Keras, optimizing their performance via grid search.
+  - `5_transformer_encoders.ipynb` fine-tunes and evaluates transformer-based models (e.g., FinBERT, BERTweet) using Hugging Face’s Trainer API for sequence classification.
+  - `6_final_model_g35.ipynb` integrates the entire pipeline with the best model and final configuration.
 - `src/` folder contains reusable modules developed for the project:
   - `__init__.py` module initialization file.
   - `preprocessing.py` implements cleaning and text transformation methods.
@@ -31,8 +31,22 @@ Two preprocessing classes were developed in `preprocessing` module:
 - `PreprocessingPretrained`: a simplified version designed for Transformer-based models, applying only emoji demojization and translation.
 
 ## 📝 Classification Models
-...
 
+### 1. **Classical Machine Learning Models**
+Implemented using `scikit-learn`:
+- Logistic Regression  
+- Random Forest  
+- Support Vector Machines (LinearSVC, SVM with RBF)  
+- K-Nearest Neighbors
+
+### 2. **Deep Learning Models**
+Two types of deep learning approaches were explored:
+- **Feedforward Neural Networks**: Built with `Keras` and integrated into `GridSearchCV` using `KerasClassifier`. These models were included in the comparison alongside classical models.
+- **Transformer-Based Models**: Fine-tuned using the Hugging Face `Trainer` API:
+  - FinBERT
+  - BERTweet
+  - RoBERTa (Twitter Sentiment Model)
+    
 ## 📊 Evaluation
 
 The following metrics were used to assess model performance:
