@@ -55,9 +55,9 @@ class TransformerEncoder():
         else:
             self.device = torch.device("cpu")
 
-    def train_predict(self, X_train, y_train, X_val, y_val, X_test=None, y_test=None):
+    def train_predict(self, X_train, y_train, X_val, y_val, X_test=None):
 
-        datasets = self._prepare_data(X_train, y_train, X_val, y_val, X_test, y_test)
+        datasets = self._prepare_data(X_train, y_train, X_val, y_val, X_test)
 
         self._prepare_labels()
 
@@ -84,8 +84,7 @@ class TransformerEncoder():
                 'prediction': preds
             })
             df_preds.to_csv('../pred_35.csv', index=False)
-            report = None      
-        
+            report = None
         else:
             predictions = trainer.predict(tokenized_datasets['val'])
             # Evaluate 
@@ -201,7 +200,7 @@ class TransformerEncoder():
             "f1": f1_score(labels, preds, average="macro"),
         }
     
-    def _prepare_data(self, X_train, y_train, X_val, y_val, X_test=None, y_test=None):
+    def _prepare_data(self, X_train, y_train, X_val, y_val, X_test=None):
         
         # Create DatasetDict - format needed for pre trained model 
         train_df = pd.DataFrame({'text': X_train, 'label': y_train})
@@ -215,8 +214,8 @@ class TransformerEncoder():
             'val': val_dataset,
         })
 
-        if X_test is not None and y_test is not None:
-            test_df = pd.DataFrame({'text': X_test, 'label': y_test})
+        if X_test is not None:
+            test_df = pd.DataFrame({'text': X_test['text'], 'id': X_test['id']})
             test_dataset = Dataset.from_pandas(test_df)
             datasets['test'] = test_dataset
 
