@@ -93,7 +93,7 @@ class TransformerEncoder():
             labels = predictions.label_ids
             report = classification_report(labels, preds, target_names=["bearish", "bullish", "neutral"])
     
-        return predictions, report
+        return preds, report
 
     def _trainer(self):
 
