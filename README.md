@@ -45,7 +45,6 @@ Two types of deep learning approaches were explored:
 - **Transformer-Based Models**: Fine-tuned using the Hugging Face `Trainer` API:
   - FinBERT
   - BERTweet
-  - RoBERTa (Twitter Sentiment Model)
     
 ## 📊 Evaluation
 
